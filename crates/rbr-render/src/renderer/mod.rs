@@ -38,7 +38,7 @@ mod shadows;
 mod textures;
 mod uniforms;
 
-pub use enhance::{AntiAliasing, Enhance};
+pub use enhance::{AntiAliasing, Enhance, Quality};
 pub use frame::FrameStats;
 pub use gpu::{instance, request_gpu, Gpu, GpuError};
 pub(crate) use meshes::mesh_bounds;
@@ -365,6 +365,7 @@ impl Renderer {
             cabin: enhance.cabin,
             sky_lut: enhance.sky,
             conditions,
+            shadow_taps: enhance.shadows.shadow_taps(),
             samples,
         };
         // A draw of a mesh whose indices start at `first_index` in the shared buffer, with its pipelines and bind group.
@@ -563,7 +564,13 @@ impl Renderer {
         let screen_reflection = reflecting.then(|| {
             ScreenReflection::new(
                 &device,
-                (&shader, vertex_entry(enhance), reflect_entry(enhance), conditions),
+                (
+                    &shader,
+                    vertex_entry(enhance),
+                    reflect_entry(enhance),
+                    conditions,
+                    enhance.reflections.reflection_rays(),
+                ),
                 [&frame_layout, &texture_layout],
                 format,
                 (depth_size, samples),
