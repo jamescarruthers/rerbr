@@ -145,6 +145,8 @@ pub struct Renderer {
     /// The low ground the height fog settles on (`None` without [`Enhance::sky`]).
     fog_ground: Option<crate::height_fog::Ground>,
     shadow_frame: wgpu::BindGroup,
+    /// The car's shadow map's depth range per block, redrawn with it.
+    shadow_range: shadows::ShadowRange,
     /// `None` when no draw reflects ([`reflects`]).
     screen_reflection: Option<ScreenReflection>,
     /// `None` unless [`Enhance::hdr`].
@@ -234,6 +236,7 @@ impl Renderer {
         });
         let mirrors = mirrors::Mirrors::new(&device, format, enhance.mirrors);
         let ground_light = bounce::Ground::new(&device, stage, enhance.occlusion);
+        let shadow_range = shadows::ShadowRange::new(&device, &shadow_view);
         let frames = [(); 3].map(|_| {
             let buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("frame"),
@@ -272,6 +275,10 @@ impl Renderer {
                         resource: wgpu::BindingResource::TextureView(&ground_light.view),
                     },
                     wgpu::BindGroupEntry { binding: 15, resource: ground_light.cells.as_entire_binding() },
+                    wgpu::BindGroupEntry {
+                        binding: 16,
+                        resource: wgpu::BindingResource::TextureView(&shadow_range.view),
+                    },
                 ],
             });
             FrameBinding { buffer, bind_group }
@@ -617,6 +624,7 @@ impl Renderer {
             shadow_layers,
             shadow_pipelines,
             shadow_frame,
+            shadow_range,
             reflection,
             surroundings,
             skylight,
