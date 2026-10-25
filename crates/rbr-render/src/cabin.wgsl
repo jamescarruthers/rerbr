@@ -54,7 +54,7 @@ fn cabin_light(v: VertexOut, n: vec3<f32>, shadowed: f32, under_cloud: f32, outs
     let sky = 1.0 - v.specular.z;
     var stage = outside.a;
     // The cascades only where the sun can reach the face.
-    if (frame.sun_shadow.x != 0.0 && frame.sun_shadow.z == 0.0 && dot(n, -frame.sun.xyz) > 0.0 && shadowed < 1.0) {
+    if (frame.sun_shadow.x != 0.0 && !is_overcast() && dot(n, -frame.sun.xyz) > 0.0 && shadowed < 1.0) {
         stage = cabin_stage_lit(v.world, n);
     }
     let sunlit = CABIN_SUN * (1.0 - shadowed) * stage * (1.0 - CLOUD_CAR_SHADE * under_cloud);
@@ -72,7 +72,7 @@ fn cabin_light(v: VertexOut, n: vec3<f32>, shadowed: f32, under_cloud: f32, outs
         let facing = 0.75 - 0.25 * n.y;
         ambient += CABIN_SUN_BOUNCE * frame.wetness.z * reach * facing * mode.light.y * frame.diffuse.rgb / held;
     }
-    let level = select(frame.dusk.w, 1.0, frame.night.x != 0.0);
+    let level = select(frame.dusk.w, 1.0, is_night());
     if (level > 0.0) {
         var bounce = vec3<f32>(0.0);
         for (var i = 0; i < 8; i++) {

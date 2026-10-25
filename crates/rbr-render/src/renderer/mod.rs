@@ -44,7 +44,9 @@ pub use gpu::{instance, request_gpu, Gpu, GpuError};
 pub(crate) use meshes::mesh_bounds;
 use meshes::{transformed_vertices, GpuDraw, GpuMesh, InteractiveGpu, MeshBuffers, Packing};
 pub use offscreen::ReadbackError;
-use pipelines::{coverage, layouts, prepassed, reflect_entry, vertex_entry, Context, DrawPass, PipelineKey};
+use pipelines::{
+    coverage, layouts, prepassed, reflect_entry, vertex_entry, Conditions, Context, DrawPass, PipelineKey,
+};
 pub(crate) use pipelines::{texture_entry, vertex_layout, SHADER, TEXTURE};
 #[cfg(test)]
 pub(crate) use reflection::BLIT;
@@ -107,6 +109,8 @@ pub struct Renderer {
     bounce: Option<bounce::Bounce>,
     /// How wet the stage's weather is ([`FrameUniform::wetness`]).
     wetness: f32,
+    /// The weather the stage's pipelines are built for ([`Conditions`]).
+    conditions: Conditions,
     /// The car's dirt level, 0 to 0.9 ([`Renderer::set_car_dirt`]).
     car_dirt: f32,
     /// How much sun gets into the cabin ([`Renderer::set_cabin_sun`]) and the car body's model space to stage space
@@ -338,6 +342,12 @@ impl Renderer {
             bind_group_layouts: &[&frame_layout, &texture_layout],
             push_constant_ranges: &[],
         });
+        let wetness = match stage.selection.weather {
+            Weather::Dry => 0.0,
+            Weather::Damp => 0.5,
+            Weather::Wet => 1.0,
+        };
+        let conditions = Conditions::of(&stage.atmosphere, enhance.sky, wetness);
         let context = Context {
             device: &device,
             format,
@@ -347,6 +357,7 @@ impl Renderer {
             water_plus: enhance.water || enhance.wet,
             cabin: enhance.cabin,
             sky_lut: enhance.sky,
+            conditions,
             samples,
         };
         // A draw of a mesh whose indices start at `first_index` in the shared buffer, with its pipelines and bind group.
@@ -537,11 +548,6 @@ impl Renderer {
         let depth_size = (1, 1);
         let depth_view = depth_view(&device, depth_size, samples);
         let color_view = color_view(&device, format, depth_size, samples);
-        let wetness = match stage.selection.weather {
-            Weather::Dry => 0.0,
-            Weather::Damp => 0.5,
-            Weather::Wet => 1.0,
-        };
         let draws = || meshes.iter().flat_map(|mesh| &mesh.draws);
         let reflecting = draws().any(|draw| reflects(&draw.bind, wetness));
         // The wet roads' reflections read the depth enough to pay for copying it; the water's alone do not.
@@ -593,6 +599,7 @@ impl Renderer {
             atmosphere: stage.atmosphere.clone(),
             bounce,
             wetness,
+            conditions,
             car_dirt: 0.0,
             cabin_sun: None,
             car_body: None,
